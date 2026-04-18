@@ -1,25 +1,64 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { SystemContext } from "@/app/(app)/layout";
+import { apiClient } from "@/lib/api/client";
 
 export default function Dashboard() {
-  const [tasks, setTasks] = useState([
-    { id: 1, label: "Strength training", xp: "+12", done: false },
-    { id: 2, label: "Calorie surplus", xp: "+08", done: true },
-    { id: 3, label: "Protein target", xp: "+05", done: true },
-    { id: 4, label: "Combat practice", xp: "+20", done: false },
-    { id: 5, label: "Sleep target", xp: "+10", done: false },
-  ]);
+  const system = useContext(SystemContext);
 
   const [currentTime, setCurrentTime] = useState<string>("");
+  const [tasks, setTasks] = useState<any[]>([]);
+
+  const router = useRouter();
 
   useEffect(() => {
     setCurrentTime(new Date().toLocaleTimeString());
+
+    const userId = localStorage.getItem("user_id");
+    if (!userId) router.push("/");
   }, []);
 
-  const router = useRouter();
+  useEffect(() => {
+    if (system?.tasks) {
+      setTasks(system.tasks);
+    }
+  }, [system]);
+
+  if (!system) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white font-mono text-sm">
+        Syncing System Data...
+      </div>
+    );
+  }
+
+  const alignment = system?.alignment_percent || 0;
+  const objective = system?.objective || null;
+  const logs = system?.system_logs || [];
+
+  const handleCompleteTask = async (taskId: number, done: boolean) => {
+    if (done) return;
+    try {
+      const userId = localStorage.getItem("user_id");
+      if (!userId) return;
+
+      const res = await apiClient("/system/complete-task", {
+        method: "POST",
+        body: JSON.stringify({ user_id: Number(userId), task_id: taskId }),
+      });
+
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, done: true } : t))
+      );
+      
+      console.log(res.message);
+    } catch (err) {
+      console.error("Failed to complete task", err);
+    }
+  };
 
   return (
     <div className="min-h-screen text-white font-sans selection:bg-white/20 flex flex-col overflow-hidden">
@@ -40,6 +79,7 @@ export default function Dashboard() {
             {tasks.map((task) => (
               <motion.div
                 key={task.id}
+                onClick={() => handleCompleteTask(task.id, task.done)}
                 whileHover={{ x: 4, backgroundColor: "rgba(255,255,255,0.02)" }}
                 className="group flex items-center justify-between p-4 border border-white/5 transition-colors cursor-pointer"
               >
@@ -54,7 +94,7 @@ export default function Dashboard() {
                   </span>
                 </div>
                 <span className="text-[10px] font-mono text-white/35 group-hover:text-white/50 transition-colors">
-                  XP {task.xp}
+                  {task.xp} XP
                 </span>
               </motion.div>
             ))}
@@ -68,7 +108,7 @@ export default function Dashboard() {
               Current You
             </span>
             <span className="text-xs font-mono text-white tracking-[0.3em]">
-              23% ALIGNED
+              {alignment}% ALIGNED
             </span>
             <span className="text-[9px] font-mono text-white/45 tracking-widest uppercase">
               Target You
@@ -77,7 +117,7 @@ export default function Dashboard() {
           <div className="relative h-0.5 w-full bg-white/5 overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: "23%" }}
+              animate={{ width: `${alignment}%` }}
               transition={{ duration: 2, ease: "circOut" }}
               className="absolute inset-0 bg-white shadow-[0_0_15px_rgba(255,255,255,0.4)]"
             />
@@ -93,14 +133,25 @@ export default function Dashboard() {
             </h3>
             <div className="p-6 border border-white/5 bg-linear-to-br from-white/2 to-transparent">
               <p className="text-sm font-light mb-4 tracking-wide text-white/80">
-                Gain +10kg combat-ready muscle
+                {objective?.title || "No objective assigned"}
               </p>
               <div className="flex items-end justify-between text-[10px] font-mono mb-2">
                 <span className="text-white/55">Progress</span>
-                <span className="text-white">1.2 / 10kg</span>
+                <span className="text-white">
+                  {objective
+                    ? `${objective.progress} / ${objective.target}`
+                    : "0 / 0"}
+                </span>
               </div>
               <div className="h-1 w-full bg-white/5">
-                <div className="h-full bg-white/20 w-[12%]" />
+                <div
+                  className="h-full bg-white/20"
+                  style={{
+                    width: objective
+                      ? `${(objective.progress / objective.target) * 100}%`
+                      : "0%",
+                  }}
+                />
               </div>
             </div>
           </section>
@@ -111,22 +162,35 @@ export default function Dashboard() {
               System Analysis
             </h3>
             <div className="space-y-4 font-mono text-[10px] tracking-wider text-white/55">
-              <motion.p
-                animate={{ opacity: [0.2, 0.5, 0.2] }}
-                transition={{ duration: 4, repeat: Infinity }}
-                className="flex gap-3"
+              {logs.map((log: any, i: number) => (
+                <p key={i} className="flex gap-3">
+                  <span className="text-white/35">
+                    [{log?.time || currentTime}]
+                  </span>
+                  {typeof log === "string" ? log : log?.message}
+                </p>
+              ))}
+            </div>
+
+            <div className="mt-12 pt-8 border-t border-white/5">
+              <button
+                onClick={async () => {
+                  try {
+                    const userId = localStorage.getItem("user_id");
+                    if (!userId) return;
+                    await apiClient("/system/daily-evaluation", {
+                      method: "POST",
+                      body: JSON.stringify({ user_id: Number(userId) })
+                    });
+                    router.push("/progress");
+                  } catch(e) {
+                    console.error(e);
+                  }
+                }}
+                className="w-full py-4 border border-white/20 hover:bg-white/5 text-[10px] font-mono tracking-[0.3em] uppercase transition-all"
               >
-                <span className="text-white/35">[{currentTime}]</span>
-                DISCIPLINE IMPROVING. MAINTAIN MOMENTUM.
-              </motion.p>
-              <p className="flex gap-3 text-white/35">
-                <span>[04:12:01]</span>
-                AVERAGE BEHAVIOR DETECTED YESTERDAY.
-              </p>
-              <p className="flex gap-3">
-                <span className="text-white/35">[00:00:00]</span>
-                CONSISTENCY DETERMINES RANK.
-              </p>
+                Execute Daily Evaluation
+              </button>
             </div>
           </section>
         </div>

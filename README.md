@@ -59,6 +59,15 @@ User enters dashboard
 ---
 
 # Tech Stack
+Built using an AI-assisted development workflow with Claude Code and Cursor.
+
+## 📸 Screenshots
+
+### Home Page
+![Home](assets/home.png)
+
+### Dashboard
+![Dashboard](assets/dashboard.png)
 
 ## Frontend
 

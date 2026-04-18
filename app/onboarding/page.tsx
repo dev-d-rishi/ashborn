@@ -77,19 +77,25 @@ export default function Onboarding() {
 
         setLoadingQuestions(true);
 
+        const goal = target || localStorage.getItem("user_goal") || "";
+
         const res = await apiClient(
-          `/ai/evaluation-questions?user_id=${userId}`,
+          "/system/generate-evaluation",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              user_id: Number(userId),
+              goal: goal,
+            }),
+          }
         );
 
-        const merged = [
-          ...(res.static_questions || []),
-          ...(res.dynamic_questions || []),
-        ];
+        const fetchedQuestions = res.questions || [];
 
-        setQuestions(merged);
+        setQuestions(fetchedQuestions);
 
         // cache questions
-        localStorage.setItem("evaluation_questions", JSON.stringify(merged));
+        localStorage.setItem("evaluation_questions", JSON.stringify(fetchedQuestions));
 
         setStep("EVALUATION");
       } catch (err) {
@@ -103,8 +109,34 @@ export default function Onboarding() {
       fetchQuestions();
     }
 
+    const submitEvaluation = async () => {
+      try {
+        const userId = localStorage.getItem("user_id");
+        const cacheRaw = localStorage.getItem("local_eval_answers");
+        if (userId && cacheRaw) {
+          const finalAns = JSON.parse(cacheRaw);
+          const res = await apiClient("/system/submit-evaluation", {
+            method: "POST",
+            body: JSON.stringify({
+              user_id: Number(userId),
+              answers: finalAns.map((a: any) => ({
+                question_id: a.question_id,
+                question: a.question,
+                answer: String(a.answer),
+              })),
+            }),
+          });
+          localStorage.setItem("eval_result", JSON.stringify(res));
+        }
+      } catch (err) {
+        console.log("Failed to submit evaluation", err);
+      } finally {
+        setTimeout(() => setStep("COMPLETE"), 2000);
+      }
+    };
+
     if (step === "PROCESSING_2") {
-      setTimeout(() => setStep("COMPLETE"), 4500);
+      submitEvaluation();
     }
   }, [step]);
 
@@ -126,29 +158,17 @@ export default function Onboarding() {
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion((prev) => prev + 1);
     } else {
-      // all questions done → submit to backend
-      try {
-        const userId = localStorage.getItem("user_id");
-        if (userId) {
-          await apiClient("/ai/submit-evaluation", {
-            method: "POST",
-            body: JSON.stringify({
-              user_id: Number(userId),
-              answers: [
-                ...answers,
-                {
-                  question_id: q.id || currentQuestion + 1,
-                  question: q.question,
-                  answer: value ?? "skipped",
-                },
-              ],
-            }),
-          });
-        }
-      } catch (err) {
-        console.log("Evaluation submit failed", err);
-      }
-
+      // all questions done → store answers locally, do not submit yet
+      const finalAnswers = [
+          ...answers,
+          {
+            question_id: q.id || currentQuestion + 1,
+            question: q.question,
+            answer: value ?? "skipped",
+          },
+      ];
+      localStorage.setItem("local_eval_answers", JSON.stringify(finalAnswers));
+      
       setStep("PROCESSING_2");
     }
   };
@@ -344,7 +364,7 @@ export default function Onboarding() {
 
               {questions[currentQuestion].type === "choice" && (
                 <div className="flex gap-4">
-                  {questions[currentQuestion].options?.map((opt) => (
+                  {questions[currentQuestion].options?.map((opt: string) => (
                     <button
                       key={opt}
                       onClick={() => nextQuestion(opt)}

@@ -1,22 +1,27 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import StarfieldCanvas from "../components/StarFieldCanvas";
 
-interface EvaluationProps {
-  targetGoal?: string;
-  disciplineIndex?: number;
-  alignment?: number;
-}
-
-export default function EvaluationResult({
-  targetGoal = "TRANSCENDENCE",
-  disciplineIndex = 14.5,
-  alignment = 0.8,
-}: EvaluationProps) {
+export default function EvaluationResult() {
   const router = useRouter();
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("eval_result");
+    const goalRaw = localStorage.getItem("user_goal") || "UNKNOWN TARGET";
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      setData({ ...parsed, targetGoal: goalRaw });
+    } else {
+      setData({ targetGoal: goalRaw, discipline_score: 0, alignment_score: 0, rank: "E", system_message: "Error fetching evaluation." });
+    }
+  }, []);
+
+  if (!data) return <div className="min-h-screen bg-black text-white flex justify-center items-center font-mono">LOADING...</div>;
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-8 py-12 overflow-hidden font-sans">
       {/* Background UI Accents */}
@@ -55,7 +60,7 @@ export default function EvaluationResult({
               Target Goal
             </p>
             <p className="text-xl font-light tracking-wide">
-              {targetGoal.toUpperCase()}
+              {data.targetGoal.toUpperCase()}
             </p>
           </section>
 
@@ -64,7 +69,7 @@ export default function EvaluationResult({
               Discipline Index
             </p>
             <p className="text-xl font-light tracking-wide">
-              {disciplineIndex}%
+              {data.discipline_score}%
             </p>
           </section>
 
@@ -73,14 +78,14 @@ export default function EvaluationResult({
               <p className="text-[10px] font-mono text-white/50 uppercase tracking-widest">
                 Alignment with Target
               </p>
-              <p className="text-sm font-mono text-white/60">{alignment}%</p>
+              <p className="text-sm font-mono text-white/60">{data.alignment_score}%</p>
             </div>
 
             {/* Alignment Bar */}
             <div className="relative w-full h-[2px] bg-white/5 gap-1">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${alignment}%` }}
+                animate={{ width: `${data.alignment_score}%` }}
                 transition={{ duration: 3, ease: "circOut" }}
                 className="absolute top-0 left-0 h-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]"
               />
@@ -103,7 +108,7 @@ export default function EvaluationResult({
               RANK ASSIGNED
             </p>
             <h2 className="text-9xl font-black tracking-tighter text-white opacity-90">
-              E
+              {data.rank}
             </h2>
           </motion.div>
 
@@ -113,8 +118,7 @@ export default function EvaluationResult({
             transition={{ delay: 2 }}
             className="text-xs md:text-sm font-light leading-relaxed text-white/70 max-w-sm mx-auto mt-6 italic"
           >
-            “Declared ambition exceeds current execution. <br />
-            Biological and psychological correction phase initiated.”
+            “{data.system_message}”
           </motion.p>
         </div>
 
