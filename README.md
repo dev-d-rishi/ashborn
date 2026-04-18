@@ -69,6 +69,14 @@ Built using an AI-assisted development workflow with Claude Code and Cursor.
 ### Dashboard
 ![Dashboard](assets/dashboard.png)
 
+## 📸 Preview
+
+### Landing Page
+<img src="assets/screenshots/home.png" width="800"/>
+
+### Dashboard / Flow
+<img src="assets/screenshots/dashboard.png" width="800"/>
+
 ## Frontend
 
 - Next.js (App Router)
